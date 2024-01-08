@@ -1,0 +1,231 @@
+diff --git a/node_modules/react-native-ui-lib/src/commons/modifiers.js b/node_modules/react-native-ui-lib/src/commons/modifiers.js
+index c11e675..45593dc 100644
+--- a/node_modules/react-native-ui-lib/src/commons/modifiers.js
++++ b/node_modules/react-native-ui-lib/src/commons/modifiers.js
+@@ -15,6 +15,7 @@ import _forEach from "lodash/forEach";
+ import _findLast from "lodash/findLast";
+ import { StyleSheet } from 'react-native';
+ import { Typography, Colors, BorderRadiuses, Spacings, ThemeManager } from "../style";
++import normalize from '../../../../utils/normalize';
+ export const FLEX_KEY_PATTERN = /^flex(G|S)?(-\d*)?$/;
+ export const PADDING_KEY_PATTERN = new RegExp(`padding[LTRBHV]?-([0-9]*|${Spacings.getKeysPattern()})`);
+ export const MARGIN_KEY_PATTERN = new RegExp(`margin[LTRBHV]?-([0-9]*|${Spacings.getKeysPattern()})`);
+@@ -80,14 +81,22 @@ export function extractTypographyValue(props) {
+   return typography;
+ }
+ export function extractPaddingValues(props) {
++  const horizontalPaddings = ['paddingH', 'paddingL', 'paddingR'];
+   const paddings = {};
+   const paddingPropsKeys = Object.keys(props).filter(key => PADDING_KEY_PATTERN.test(key));
+   _forEach(paddingPropsKeys, key => {
+     if (props[key] === true) {
+       const [paddingKey, paddingValue] = key.split('-');
+       const paddingVariation = PADDING_VARIATIONS[paddingKey];
++      if(paddingKey==='padding'){
++        paddings["paddingHorizontal"] = normalize(Number(paddingValue));
++        paddings["paddingVertical"] = normalize(Number(paddingValue),'height');
++        return;
++      } else if(horizontalPaddings.includes(paddingKey)){
++        paddings[paddingVariation] = normalize(Number(paddingValue));
++        return }
+       if (!isNaN(Number(paddingValue))) {
+-        paddings[paddingVariation] = Number(paddingValue);
++        paddings[paddingVariation] = normalize(Number(paddingValue),'height');
+       } else if (Spacings.getKeysPattern().test(paddingValue)) {
+         paddings[paddingVariation] = Spacings[paddingValue];
+       }
+@@ -96,16 +105,25 @@ export function extractPaddingValues(props) {
+   return paddings;
+ }
+ export function extractMarginValues(props) {
++  const hotizontalMargins = ['marginH', 'marginL', 'marginR'];
+   const margins = {};
+   const marginPropsKeys = Object.keys(props).filter(key => MARGIN_KEY_PATTERN.test(key));
+   _forEach(marginPropsKeys, key => {
+     if (props[key] === true) {
+       const [marginKey, marginValue] = key.split('-');
+-      const paddingVariation = MARGIN_VARIATIONS[marginKey];
++      const marginVariation = MARGIN_VARIATIONS[marginKey];
++      if(marginKey==='margin'){
++        margins["marginHorizontal"] = normalize(Number(marginValue));
++        margins["marginVertical"] = normalize(Number(marginValue),'height');
++        return 
++      } else if(hotizontalMargins.includes(marginKey)){
++        margins[marginVariation] = normalize(Number(marginValue));
++        return
++      }
+       if (!isNaN(Number(marginValue))) {
+-        margins[paddingVariation] = Number(marginValue);
++        margins[marginVariation] = normalize(Number(marginValue),'height');
+       } else if (Spacings.getKeysPattern().test(marginValue)) {
+-        margins[paddingVariation] = Spacings[marginValue];
++        margins[marginVariation] = Spacings[marginValue];
+       }
+     }
+   });
+diff --git a/node_modules/react-native-ui-lib/src/components/text/index.native.js b/node_modules/react-native-ui-lib/src/components/text/index.native.js
+new file mode 100644
+index 0000000..aff41c7
+--- /dev/null
++++ b/node_modules/react-native-ui-lib/src/components/text/index.native.js
+@@ -0,0 +1,139 @@
++import _isString from "lodash/isString";
++import _map from "lodash/map";
++import _isArray from "lodash/isArray";
++import _isEmpty from "lodash/isEmpty";
++import React, { PureComponent } from 'react';
++import { Text as RNText, StyleSheet, Animated, Platform } from 'react-native';
++import {NativeText} from 'react-native/Libraries/Text/TextNativeComponent'
++import { asBaseComponent, forwardRef, Constants } from "react-native-ui-lib/src/commons/new";
++import { Colors } from "react-native-ui-lib/src/style";
++import { TextUtils } from "react-native-ui-lib/src/utils";
++var writingDirectionTypes = /*#__PURE__*/function (writingDirectionTypes) {
++  writingDirectionTypes["RTL"] = "rtl";
++  writingDirectionTypes["LTR"] = "ltr";
++  return writingDirectionTypes;
++}(writingDirectionTypes || {}); //TODO: remove after ComponentPropTypes deprecation;
++/**
++ * @description: A wrapper for Text component with extra functionality like modifiers support
++ * @extends: Text
++ * @extendsLink: https://reactnative.dev/docs/text
++ * @modifiers: margins, color, typography
++ * @example: https://github.com/wix/react-native-ui-lib/blob/master/demo/src/screens/componentScreens/TextScreen.tsx
++ * @image: https://github.com/wix/react-native-ui-lib/blob/master/demo/showcase/Text/Modifiers.png?raw=true, https://github.com/wix/react-native-ui-lib/blob/master/demo/showcase/Text/Transformation.png?raw=true, https://github.com/wix/react-native-ui-lib/blob/master/demo/showcase/Text/Highlights.png?raw=true
++ */
++
++class Text extends PureComponent {
++  static displayName = 'Text';
++
++  TextContainer = this.props.animated ? Animated.createAnimatedComponent(this.props.onPress ? RNText : NativeText)  : this.props.onPress ? RNText : NativeText;
++
++  // setNativeProps(nativeProps) {
++  //   this._root.setNativeProps(nativeProps); // eslint-disable-line
++  // }
++
++  renderText(children) {
++    const {
++      highlightString,
++      highlightStyle
++    } = this.props;
++    if (!_isEmpty(highlightString)) {
++      if (_isArray(children)) {
++        return _map(children, child => {
++          return this.renderText(child);
++        });
++      }
++      if (_isString(children)) {
++        const textParts = highlightString && TextUtils.getPartsByHighlight(children, highlightString);
++        return textParts && _map(textParts, (text, index) => {
++          return <RNText key={index} style={text.shouldHighlight ? text.style ?? [styles.highlight, highlightStyle] : styles.notHighlight} onPress={text.onPress} testID={text.testID}>
++                {text.string}
++              </RNText>;
++        });
++      }
++    }
++    return children;
++  }
++  render() {
++    const {
++      // (!) extract flex prop to avoid passing them on Android
++      // TODO: extract alignment (top, right, ...) props till we manage to exclude them from typings
++      /* eslint-disable */
++      flex,
++      // @ts-ignore
++      left,
++      // @ts-ignore
++      top,
++      // @ts-ignore
++      right,
++      // @ts-ignore
++      bottom,
++      /* eslint-enable */
++      modifiers,
++      style,
++      center,
++      uppercase,
++      underline,
++      children,
++      forwardedRef,
++      recorderTag,
++      ...others
++    } = this.props;
++    const color = this.props.color || modifiers.color;
++    const {
++      margins,
++      typography,
++      backgroundColor,
++      flexStyle
++    } = modifiers;
++    const textStyle = [styles.container, typography, color && {
++      color
++    }, backgroundColor && {
++      backgroundColor
++    }, flexStyle, margins, center && styles.centered, uppercase && styles.uppercase, underline && styles.underline, style];
++    const TextContainer = this.TextContainer;
++    return <TextContainer fsTagName={recorderTag} {...others} style={textStyle} ref={forwardedRef}>
++        {this.renderText(children)}
++      </TextContainer>;
++  }
++}
++const styles = StyleSheet.create({
++  container: {
++    backgroundColor: 'transparent',
++    color: Colors.$textDefault,
++    ...Platform.select({
++      ios: {
++        writingDirection: Constants.isRTL ? writingDirectionTypes.RTL : writingDirectionTypes.LTR
++      },
++      android: {
++        textAlign: 'left'
++      }
++    })
++  },
++  centered: {
++    textAlign: 'center'
++  },
++  uppercase: {
++    textTransform: 'uppercase'
++  },
++  underline: {
++    textDecorationLine: 'underline'
++  },
++  highlight: {
++    color: Colors.grey30
++  },
++  notHighlight: {
++    color: undefined
++  }
++});
++export { Text }; // For tests
++
++const modifiersOptions = {
++  color: true,
++  margins: true,
++  typography: true,
++  backgroundColor: true,
++  flex: true
++};
++export default asBaseComponent(forwardRef(Text), {
++  modifiersOptions
++});
+\ No newline at end of file
+diff --git a/node_modules/react-native-ui-lib/src/components/text/index.js b/node_modules/react-native-ui-lib/src/components/text/index.web.js
+similarity index 95%
+rename from node_modules/react-native-ui-lib/src/components/text/index.js
+rename to node_modules/react-native-ui-lib/src/components/text/index.web.js
+index 6b3365c..e5c7bf2 100644
+--- a/node_modules/react-native-ui-lib/src/components/text/index.js
++++ b/node_modules/react-native-ui-lib/src/components/text/index.web.js
+@@ -4,9 +4,9 @@ import _isArray from "lodash/isArray";
+ import _isEmpty from "lodash/isEmpty";
+ import React, { PureComponent } from 'react';
+ import { Text as RNText, StyleSheet, Animated, Platform } from 'react-native';
+-import { asBaseComponent, forwardRef, Constants } from "../../commons/new";
+-import { Colors } from "../../style";
+-import { TextUtils } from "../../utils";
++import { asBaseComponent, forwardRef, Constants } from "react-native-ui-lib/src/commons/new";
++import { Colors } from "react-native-ui-lib/src/style";
++import { TextUtils } from "react-native-ui-lib/src/utils";
+ var writingDirectionTypes = /*#__PURE__*/function (writingDirectionTypes) {
+   writingDirectionTypes["RTL"] = "rtl";
+   writingDirectionTypes["LTR"] = "ltr";

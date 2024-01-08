@@ -1,0 +1,17 @@
+{
+  "bracketSpacing": false,
+  "jsxBracketSameLine": true,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "arrowParens": "avoid",
+  "importOrder": [
+    "^(react|react-native)$",
+    "^(expo)",
+    "<THIRD_PARTY_MODULES>",
+    "^(@/|components|containers|[./])",
+    "^screens"
+  ],
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true,
+  "plugins": ["@trivago/prettier-plugin-sort-imports"]
+}
